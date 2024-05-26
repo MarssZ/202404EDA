@@ -14,4 +14,7 @@ GetWeather.ipynb
 
 # 假设验证
 Test_OneWayANOVA  单因素方差检验ANOVA，用来检验一个分类自变量（如天气情况）和一个连续自变量（如销量）之间是否存在关系。
+Test_TwoWayLinear 分析两个连续变量是否线性相关
+Test_timeSeries 分析时间序列
+
 
