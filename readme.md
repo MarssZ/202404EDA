@@ -17,4 +17,7 @@ Test_OneWayANOVA  单因素方差检验ANOVA，用来检验一个分类自变量
 Test_TwoWayLinear 分析两个连续变量是否线性相关
 Test_timeSeries 分析时间序列
 
+## 预测
+Test_Prophet 使用Prophet来预测未来价格走势
+
 
