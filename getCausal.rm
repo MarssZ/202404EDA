@@ -1,0 +1,15 @@
+# 注意事项
+目前从服务器端.csv里读数据，但也支持给我传dataframe
+目前仅支持.csv中有的时间数据。截止到20240531，只有20230101至20231230的数据。
+
+# 单日归因
+http://192.168.20.45:5000/getCause?DateY=2023-05-01&DateX=2023-5-5
+DateY(str)：YYYY-MM-DD格式，待分析日
+DateX(str)：YYYY-MM-DD格式，对比日
+
+# 时间段归因
+http://192.168.20.45:5000/getRangeCause?dateYstart=2023-05-01&dateYend=2023-5-5&dateXstart=2023-03-02&dateXend=2023-03-09
+dateYstart(str)：YYYY-MM-DD格式，待分析时间段开始日期
+dateYend(str)：YYYY-MM-DD格式，待分析时间段结束日期
+dateXstart(str)：YYYY-MM-DD格式，对比时间段开始日期
+dateXend(str)：YYYY-MM-DD格式，对比时间段结束日期
