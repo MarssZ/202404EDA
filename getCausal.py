@@ -11,7 +11,7 @@ import pandas as pd
 import json
 
 # 读取excel文件并获取指定列
-df = pd.read_csv('Data\结果1_全站按日期分组_2023全年.csv', usecols=COLS_ALL, encoding='GBK')
+df = pd.read_csv('Data/结果1_全站按日期分组_2023全年.csv', usecols=COLS_ALL, encoding='GBK')
 # 将DataFrame转换为字典
 data = df.to_dict(orient='records')
 
@@ -375,18 +375,25 @@ def get_label_305pricee_by_date(dataframe, specific_date):
     except KeyError as e:
         print(f"数据框中没有名为 'encode_label_305price_info' 或 'date' 的列: {e}")
         return None
+
 def calculate_infra(array):
     """
     计算影响力权重
     
     参数:
-    array (dict): 一个字典，其中键是影响因素的名称，值是其平均销量。
+    array (dict): 一个字典，其结构如下
+       array_range = {
+        "温度": {
+            "subject": "温度",
+            "analysis": temperature_str,
+            "resi":temperature_amount_resi
+        },
     
     返回:
     dict: 一个字典，其中键是影响因素的名称，值是其由其平均销量计算得到的影响权重。正面影响的权重为正值，负面影响的权重为负值。
     """
-     # 对字典进行排序
-    array = dict(sorted(array.items(), key=lambda item: item[1]))
+    # 对字典进行排序
+    array = dict(sorted(array.items(), key=lambda item: item[1]['resi'],reverse=True))
     #print("排序后的数组:", array)
 
     ## 计算影响力权重
@@ -396,22 +403,28 @@ def calculate_infra(array):
 
     # 遍历字典，计算正负值的总和
     for value in array.values():
-        all_sum +=value
-        if value > 0:
-            positive_sum += value
-        elif value < 0:
-            negative_sum += value
+        all_sum +=value['resi']
+        if value['resi'] > 0:
+            positive_sum += value['resi']
+        elif value['resi'] < 0:
+            negative_sum += value['resi']
     print()
     print(f'positive_sum: {positive_sum:.2f}, negative_sum: {negative_sum:.2f}, all_sum: {all_sum:.2f} ')
+   
+    # 创建一个新的字典存储权重
+    new_array = {}
 
     # 再次遍历字典，计算权重
     for key in array:
-        if array[key] > 0:
-            array[key] = array[key] / positive_sum 
-        elif array[key] < 0:
-            array[key] = - array[key] / negative_sum 
-    # print("###计算归因影响因子:", array)
-    return array
+        new_array[key] = array[key].copy()
+        if array[key]['resi'] > 0:
+            new_array[key]['weight'] = array[key]['resi'] / positive_sum 
+        elif array[key]['resi'] < 0:
+            new_array[key]['weight'] = - array[key]['resi'] / negative_sum 
+        else:
+            new_array[key]['weight'] = 0.0
+    # print("###计算归因影响因子:", json.dumps(new_array, indent=4, ensure_ascii=False))
+    return new_array
 
 def analyze_infra(dataframe, date_y, date_x, array):
     """
@@ -427,26 +440,30 @@ def analyze_infra(dataframe, date_y, date_x, array):
     dict: 更新后的归因字典，其中包含销量变化的描述和归因分析结果。字典的键是影响因素名称，值是描述影响权重的字符串。并增加汇总项。
     """
     keys_to_delete = []
+    reason_json = {}
 
     # 获取两个日期的销量数据，并计算变化量
     amount_y = get_amount_by_date(dataframe, date_y) / 10000
     amount_x = get_amount_by_date(dataframe, date_x) / 10000
     amount_resi = amount_y - amount_x
 
+   
     # 根据销量变化量进行归因分析
     if amount_resi > 0:  # 销量增长归因
         amount_str = f'{date_y}和{date_x}相比，前者销量{amount_y:.2f}万，后者销量{amount_x:.2f}万。销量多了{amount_resi:.2f}万。'
-        array = dict(sorted(array.items(), key=lambda item: item[1], reverse=True))  # 倒序重排
+        reason_json["causal_type"] = "销量增长"
         for key in array:
-            if array[key] < 0.001:  # 忽略过小的因素
+             if 'weight' in array[key] and array[key]['weight'] < 0.001:  # 忽略过小的因素
                 keys_to_delete.append(key)
     elif amount_resi < 0:  # 销量减少归因
         amount_str = f'{date_y}和{date_x}相比，前者销量{amount_y:.2f}万，后者销量{amount_x:.2f}万。销量少了{-amount_resi:.2f}万。'
+        reason_json["causal_type"] = "销量下滑"
         for key in array:
-            if array[key] > -0.001:
+             if 'weight' in array[key] and array[key]['weight'] > -0.001:
                 keys_to_delete.append(key)
     else:  # 销量无变化
         amount_str = f'{date_y}和{date_x}相比，前者销量{amount_y:.2f}万，后者销量{amount_x:.2f}万。销量无明显变化。'
+        reason_json["causal_type"] = "销量无明显变化"
         for key in array:
             keys_to_delete.append(key)
 
@@ -456,16 +473,18 @@ def analyze_infra(dataframe, date_y, date_x, array):
     
     # 更新影响权重字典
     for key in array:
-        if array[key] < 0:
-            array[key] = -array[key]
-        array[key] = f"影响权重{(array[key] * 100):.2f}%"
+        if 'weight' in array[key] and array[key]['weight'] < 0:
+            array[key]['weight'] = -(array[key]['weight'])*100
 
-    # 打印归因分析结果
-    print()
-    array[amount_str] = '归因成功'
-    print("归因分析:", json.dumps(array, indent=4, ensure_ascii=False))
+    # 按权重排序
+    array = dict(sorted(array.items(), key=lambda item: item[1]['weight'], reverse=True))  # 倒序重排    
+
+    # 装进字典
+    reason_json['success'] = True
+    reason_json['conclusion'] = amount_str
+    reason_json['reseons'] = array
     
-    return array
+    return reason_json
     
 
 ## 单日对比归因
@@ -539,15 +558,38 @@ def compare_by_date(dataframe, date_y, date_x):
     ## 综合归因
     # 将它们放入一个字典
     array_base = {
-        temperature_str: temperature_amount_resi,
-        weekday_str: weekday_amount_resi,
-        holiday_str: holiday_amount_resi,
-        wc_night_str: wc_night_amount_resi,
-        label_305price_str: encoded_305price_amount_resi
+        "温度": {
+            "subject": "温度",
+            "analysis": temperature_str,
+            "resi":temperature_amount_resi
+        },
+        "星期几":{
+            "subject": "星期几",
+            "analysis": weekday_str,
+            "resi":weekday_amount_resi
+        },
+        "节假日":{
+            "subject": "节假日",
+            "analysis": holiday_str,
+            "resi":holiday_amount_resi
+        },
+        "天气":{
+            "subject": "天气",
+            "analysis": wc_night_str,
+            "resi":wc_night_amount_resi
+        },
+        "调价":{
+            "subject": "调价",
+            "analysis": label_305price_str,
+            "resi":encoded_305price_amount_resi
+        }
     }
+ 
     # 计算影响因子
     array = calculate_infra(array_base)
     array = analyze_infra(dataframe, date_y, date_x, array)
+    print("单日归因分析:", json.dumps(array, indent=4, ensure_ascii=False))
+
     return array
 
 ## 工具函数（范围对比）
@@ -649,12 +691,13 @@ def analyze_range_infra(dataframe, date_y_start, date_y_end, date_x_start, date_
     date_y_end (str): 第一个时间段的结束日期，格式应为 "YYYY-MM-DD"。
     date_x_start (str): 第二个时间段的起始日期，格式应为 "YYYY-MM-DD"。
     date_x_end (str): 第二个时间段的结束日期，格式应为 "YYYY-MM-DD"。
-    array (dict): 包含影响因素及其权重的字典，其中键是影响因素名称，值是其对应的权重。
+    array (dict): 包含影响因素及其权重的字典。
 
     返回:
-    dict: 更新后的影响权重字典，其中包含销量变化的描述和归因分析结果。字典的键是影响因素名称，值是描述影响权重的字符串。
+    dict: 更新后的影响权重字典，其中包含销量变化的描述和归因分析结果。
     """
     keys_to_delete = []
+    reason_json = {}
 
     # 获取两个时间段的总销量数据，并计算变化量
     amount_y = get_mean_amount_by_date_range(dataframe, date_y_start, date_y_end) / 10000
@@ -662,19 +705,24 @@ def analyze_range_infra(dataframe, date_y_start, date_y_end, date_x_start, date_
     amount_resi = amount_y - amount_x
 
     # 根据销量变化量进行归因分析
+    
     if amount_resi > 0:  # 销量增长归因
         amount_str = f'{date_y_start}到{date_y_end}和{date_x_start}到{date_x_end}相比，前者日均销量{amount_y:.2f}万，后者日均销量{amount_x:.2f}万。日均销量多了{amount_resi:.2f}万。'
-        array = dict(sorted(array.items(), key=lambda item: item[1], reverse=True))  # 倒序重排
+        #array = dict(sorted(array.items(), key=lambda item: item[1]['weight'], reverse=True))  # 倒序重排
+        reason_json["causal_type"] = "销量增长"
+        #print("**********:", json.dumps(array, indent=4, ensure_ascii=False))
         for key in array:
-            if array[key] < 0.001:  # 忽略过小的因素
+            if 'weight' in array[key] and array[key]['weight'] < 0.001:  # 忽略过小的因素
                 keys_to_delete.append(key)
     elif amount_resi < 0:  # 销量减少归因
         amount_str = f'{date_y_start}到{date_y_end}和{date_x_start}到{date_x_end}相比，前者日均销量{amount_y:.2f}万，后者日均销量{amount_x:.2f}万。日均销量少了{-amount_resi:.2f}万。'
+        reason_json["causal_type"] = "销量下滑"
         for key in array:
-            if array[key] > -0.001:
+            if 'weight' in array[key] and array[key]['weight'] > -0.001:
                 keys_to_delete.append(key)
     else:  # 销量无变化
         amount_str = f'{date_y_start}到{date_y_end}和{date_x_start}到{date_x_end}相比，前者日均销量{amount_y:.2f}万，后者日均销量{amount_x:.2f}万。日均销量无明显变化。'
+        reason_json["causal_type"] = "销量无明显变化"
         for key in array:
             keys_to_delete.append(key)
 
@@ -684,17 +732,17 @@ def analyze_range_infra(dataframe, date_y_start, date_y_end, date_x_start, date_
 
     # 更新影响权重字典
     for key in array:
-        if array[key] < 0:
-            array[key] = -array[key]
-        array[key] = f"影响权重{(array[key] * 100):.2f}%"
+        if 'weight' in array[key] and array[key]['weight'] < 0:
+            array[key]['weight'] = -(array[key]['weight'])*100
 
-    # 打印归因分析结果
-    # print()
-    # print(amount_str)
-    array[amount_str] = '归因成功'
-    print("归因分析:", json.dumps(array, indent=4, ensure_ascii=False))
+    # 装进字典
+    reason_json['success'] = True
+    reason_json['conclusion'] = amount_str
+    reason_json['reseons'] = array
+    
+    print("归因分析:", json.dumps(reason_json, indent=4, ensure_ascii=False))
 
-    return array
+    return reason_json
 
 def generate_holiday_count_str(holidays_count_dict):
     """
@@ -900,15 +948,12 @@ def compare_by_dateRange(dataframe, date_y_start, date_y_end, date_x_start, date
 
     temperature_y_count_str = generate_temperature_count_str(temperature_y_count_dict)
     temperature_x_count_str = generate_temperature_count_str(temperature_x_count_dict)
-    print()
     temperature_str = f'{date_y_start}至{date_y_end},{temperature_y_count_str}。而{date_x_start}至{date_x_end}，{temperature_x_count_str}。根据现有数据回归的情况，温度过高和过低都会带来销量增长，而适宜温度可能会导致销量降低。'
-    print(temperature_str)
     
     temperature_mean_dict = calculate_groupby_mean_to_dict(df, 'high', 'amount')
     amount_y = calculate_mean_value(temperature_mean_dict, temperature_y_count_dict)
     amount_x = calculate_mean_value(temperature_mean_dict, temperature_x_count_dict)
     temperature_amount_resi = amount_y-amount_x
-    print('温度因素差值amount_resi :'+ str(temperature_amount_resi))
 
     # weekday星期几归因
     weekday_y_count_dict = get_count_by_dateRange(dataframe,'week', date_y_start, date_y_end)
@@ -916,15 +961,14 @@ def compare_by_dateRange(dataframe, date_y_start, date_y_end, date_x_start, date
 
     weekday_y_count_str = generate_week_count_str(weekday_y_count_dict)
     weekday_x_count_str = generate_week_count_str(weekday_x_count_dict)
-    print()
     weekday_str = f'{date_y_start}至{date_y_end},共有{weekday_y_count_str}。而{date_x_start}至{date_x_end}，则有{weekday_x_count_str}。基于过往数据经验，星期三和星期五会带来较高销量，而周末的销量略微减少。'
-    print(weekday_str)
+
 
     week_mean_dict = calculate_groupby_mean_to_dict(df, 'week', 'amount')
     amount_y = calculate_mean_value(week_mean_dict, weekday_y_count_dict)
     amount_x = calculate_mean_value(week_mean_dict, weekday_x_count_dict)
     weekday_amount_resi = amount_y-amount_x
-    print('星期因素差值amount_resi :'+ str(weekday_amount_resi))
+
 
     # 节假日归因
     holidays_y_count_dict = get_count_by_dateRange(dataframe,'holidays', date_y_start, date_y_end)
@@ -932,15 +976,12 @@ def compare_by_dateRange(dataframe, date_y_start, date_y_end, date_x_start, date
 
     holiday_y_count_str = generate_holiday_count_str(holidays_y_count_dict)
     holiday_x_count_str = generate_holiday_count_str(holidays_x_count_dict)
-    print()
     holiday_str = f'{date_y_start}至{date_y_end},{holiday_y_count_str}。而{date_x_start}至{date_x_end}，{holiday_x_count_str}。从现有数据的规律可以得出，五一和国庆节销量明显高于平时，而元旦和春节销量较低。'
-    print(holiday_str)
 
     holidays_mean_dict = calculate_groupby_mean_to_dict(df, 'holidays', 'amount')
     amount_y = calculate_mean_value(holidays_mean_dict, holidays_y_count_dict)
     amount_x = calculate_mean_value(holidays_mean_dict, holidays_x_count_dict)
     holiday_amount_resi = amount_y-amount_x
-    print('节假日因素差值amount_resi :'+ str(holiday_amount_resi))
 
     # wc_night风力归因
     wc_night_y_count_dict = get_count_by_dateRange(dataframe,'wc_night', date_y_start, date_y_end)
@@ -948,41 +989,56 @@ def compare_by_dateRange(dataframe, date_y_start, date_y_end, date_x_start, date
 
     wc_night_y_count_str = generate_wc_night_count_str(wc_night_y_count_dict)
     wc_night_x_count_str = generate_wc_night_count_str(wc_night_x_count_dict)
-    print()
     wc_night_str = f'{date_y_start}至{date_y_end},共有{wc_night_y_count_str}。而{date_x_start}至{date_x_end}，则有{wc_night_x_count_str}。从过往规律来看，大风天气会影响销量。'
-    print(wc_night_str)
 
     wc_night_mean_dict = calculate_groupby_mean_to_dict(df, 'wc_night', 'amount')
     amount_y = calculate_mean_value(wc_night_mean_dict, wc_night_y_count_dict)
     amount_x = calculate_mean_value(wc_night_mean_dict, wc_night_x_count_dict)
     wc_night_amount_resi = amount_y-amount_x
-    print('风力因素差值amount_resi :'+ str(wc_night_amount_resi))
 
     # 调价归因
     label_y = get_count_by_dateRange(dataframe,'encode_label_305price', date_y_start, date_y_end)
     label_x = get_count_by_dateRange(dataframe,'encode_label_305price', date_x_start, date_x_end)
     label_y_str = generate_label_count_str(label_y)
     label_x_str = generate_label_count_str(label_x)
-    print()
     label_305price_str = f'{date_y_start}至{date_y_end},共{label_y_str}。而{date_x_start}至{date_x_end}，则{label_x_str}。涨价和降价均会波及前后日期的销量，且都会有正负双向影响，例如涨价前会导致抢购，降价前会导致持币待购，其影响的大小与价格调整的幅度相关。'
-    # label_305price_str = f'{date_y}和{date_x}相比，前者是{label_y}而后者{label_x}。调价会明显地影响调价日前两日与后三日的销量，具体表现为如果涨价那么前两日销量会增加，如果降价当日销量大概率会增加，并会持续一小段时间。而其影响的大小与涨价与降价的幅度也同样有关。'
-    print(label_305price_str)
 
     # 基于encoded_305price来预测销量均值
     amount_y = get_predict_mean_amount_by_encoded_305price(df, date_y_start, date_y_end)
     amount_x = get_predict_mean_amount_by_encoded_305price(df, date_x_start, date_x_end)
     encoded_305price_amount_resi = amount_y-amount_x
-    print('调价因素差值encoded_305price_amount_resi :'+ str(encoded_305price_amount_resi))
+   # print('调价因素差值encoded_305price_amount_resi :'+ str(encoded_305price_amount_resi))
 
     ## 综合归因
     # 将它们放入一个字典
     array_range = {
-        temperature_str: temperature_amount_resi,
-        weekday_str: weekday_amount_resi,
-        holiday_str: holiday_amount_resi,
-        wc_night_str: wc_night_amount_resi,
-        label_305price_str: encoded_305price_amount_resi
+        "温度": {
+            "subject": "温度",
+            "analysis": temperature_str,
+            "resi":temperature_amount_resi
+        },
+        "星期几":{
+            "subject": "星期几",
+            "analysis": weekday_str,
+            "resi":weekday_amount_resi
+        },
+        "节假日":{
+            "subject": "节假日",
+            "analysis": holiday_str,
+            "resi":holiday_amount_resi
+        },
+        "天气":{
+            "subject": "天气",
+            "analysis": wc_night_str,
+            "resi":wc_night_amount_resi
+        },
+        "调价":{
+            "subject": "调价",
+            "analysis": label_305price_str,
+            "resi":encoded_305price_amount_resi
+        }
     }
+    print("归因分析:", json.dumps(array_range, indent=4, ensure_ascii=False))
     # 计算影响因子
     array = calculate_infra(array_range)
     array = analyze_range_infra(dataframe, date_y_start, date_y_end, date_x_start, date_x_end, array)
@@ -998,6 +1054,8 @@ def is_valid_date(date_str):
         return False
 
 # 获取单日对比
+# http://127.0.0.1:5000/getCause?DateY=2023-04-01&DateX=2023-12-25
+# http://192.168.20.45:5000/getCause?DateY=2023-04-02&DateX=2023-2-25
 from datetime import datetime
 @app.route('/getCause', methods=['GET'])
 def get_cause():
@@ -1021,6 +1079,8 @@ def get_cause():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# http://127.0.0.1:5000/getRangeCause?dateYstart=2023-04-01&dateYend=2023-04-04&dateXstart=2023-05-01&dateXend=2023-05-05
+# http://192.168.20.45:5000/getRangeCause?dateYstart=2023-04-01&dateYend=2023-04-04&dateXstart=2023-05-01&dateXend=2023-05-05
 @app.route('/getRangeCause', methods=['GET'])
 def get_range_cause():
     dateYstart = request.args.get('dateYstart')
@@ -1047,4 +1107,4 @@ def get_range_cause():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,host='0.0.0.0')

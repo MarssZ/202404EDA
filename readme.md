@@ -1,13 +1,12 @@
-# 异常值模型
-异常值模型：不寻常的最大值 DataInsight_SinglePointInsight_OutstandingNo1.ipynb
-
 # 归因模型： 
+江苏AIGC归因：只看getCausal.md 下面不用看
 归因模型：线性归因 ModelAttribution_Linear
 归因模型：多分类归因 ModelAttribution_Classification
 
 
 # 其它
 相关性计算 DataInsight_Correlation_Corr.ipynb
+异常值模型：不寻常的最大值 DataInsight_SinglePointInsight_OutstandingNo1.ipynb
 
 
 ## 第一步：特征构建
@@ -21,6 +20,6 @@ Test_TwoWayLinear 分析两个连续变量是否线性相关
 Test_timeSeries 分析时间序列
 
 ## 第三步：回归预测
-Test_Prophet 使用Prophet来预测未来价格走势
+Test_Prophet 使用Prophet来预测未来价格走势，
 
 
