@@ -3,6 +3,8 @@
     归因模型：线性归因 ModelAttribution_Linear
     归因模型：多分类归因 ModelAttribution_Classification
 
+# EDA
+    EDA_corr_column  //上传一个表格，自动找到与目标列最相关的因子
 
 # 其它
     相关性计算 DataInsight_Correlation_Corr.ipynb
