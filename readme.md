@@ -12,7 +12,7 @@
     DataInsight_SinglePointInsight_OutstandingNo1.ipynb    #异常值模型：不寻常的最大值
 
 ## 第一步：特征构建
-    Features_Construction.ipynb 特征构建的测试文件
+    Features_Construction.ipynb 特征构建,将分类特征构建为数字特征。
     GetWeather.ipynb 通过API获取天气数据
 
 ## 第二步：特征描述
@@ -21,10 +21,14 @@
     Test_TwoWayLinear   #分析两个连续变量是否线性相关
     Test_Spearman.ipynb #分析两个连续变量是否spearman相关
 
-    Test_timeSeries     #时间序列双折线图
+    Test_TimeSeries     #时间序列双折线图
     Test_TimeSeries_STL #时间序列STL分解
 
 ## 第三步：回归预测
     Test_Prophet 使用Prophet来预测未来价格走势，
 
 
+
+
+# 竞争站点分析
+    CompetingStationsPrice_XGBoost  #使用XGB分析竞争站点价格对于整体销量的影响力
