@@ -1,2 +1,4 @@
 chinesecalendar
 shap
+xgboost
+prophet
