@@ -8,3 +8,4 @@ CompetingStationsPrice_Dowhy              # 因果推断，竞争站点价差、
 
 # 回归模型
 Reg_CarFlow                                      # 使用车流量回归销量，得到残差网络。找出与车流量无关的要素，是否可以解释残差值。
+XGB_forecast_Liters                               # 使用XGB通过竞争站价格、本站价格、价差、站外车流量来预测加油总升数
