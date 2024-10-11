@@ -3,6 +3,8 @@
     getCausal.md                         #江苏AIGC归因readme：只看这个，下面不用看
     ModelAttribution_Linear              #归因模型：线性归因 
     ModelAttribution_Classification      #归因模型：多分类归因
+## 竞争站点归因
+    /CompetingStations                   #文件夹中详见readme
 
 # EDA
     EDA_corr_column                         #上传一个表格，自动找到与目标列最相关的因子

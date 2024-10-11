@@ -16,9 +16,9 @@ def get_lowest_price(price_str):
             return None  # 如果列表为空，则返回None或其他适当的值
 
 # 测试
-price_str = '["19.99", "20.50", "21.75"]'
-lowest_price = get_lowest_price(price_str)
-print(lowest_price)  # 输出应该是 19.99
+# price_str = '["19.99", "20.50", "21.75"]'
+# lowest_price = get_lowest_price(price_str)
+# print(lowest_price)  # 输出应该是 19.99
 
 # 从竞争站点价格数组中获取次低价
 def get_second_lowest_price(price_str):
